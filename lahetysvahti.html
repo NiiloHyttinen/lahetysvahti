@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lähetysvahti – kellonajat ja streamit</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#141c30;--line:#293650;--muted:#9eabc3;--text:#f4f7ff;--blue:#70a7ff;--amber:#ffca6a;--red:#ff737e;--green:#71dfb1}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#172441,var(--bg) 58%);color:var(--text);font:16px/1.45 system-ui,Segoe UI,Arial,sans-serif}
+header{padding:22px 24px 12px;display:flex;justify-content:space-between;gap:20px;align-items:center;flex-wrap:wrap}
+h1{font-size:clamp(1.2rem,2.5vw,2rem);margin:0} .sub{color:var(--muted);font-size:.9rem}
+main{max-width:1500px;margin:auto;padding:12px 24px 30px}
+.clock{font-variant-numeric:tabular-nums;font-size:clamp(3.5rem,10vw,8rem);font-weight:750;letter-spacing:.035em;line-height:1.05;text-align:center;margin:12px 0 4px}
+.date{text-align:center;color:var(--muted);margin-bottom:26px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:22px}
+button,input,select{font:inherit;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#0f1729;color:var(--text)}
+button{cursor:pointer;font-weight:650}button:hover{border-color:var(--blue)}button.primary{background:var(--blue);color:#081327;border-color:var(--blue)}button.danger{color:#ffb2b8}
+.layout{display:grid;grid-template-columns:minmax(280px,360px) 1fr;gap:18px;align-items:start}
+.panel{background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--line);border-radius:16px;padding:18px}
+h2{font-size:1.1rem;margin:0 0 14px}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:11px}.field{display:flex;flex-direction:column;gap:5px}.field.full{grid-column:1/-1}.field label{font-size:.82rem;color:var(--muted)}input,select{width:100%;min-width:0}input[type=checkbox]{width:auto;accent-color:var(--blue)}.checkrow{display:flex;gap:9px;align-items:center;color:var(--muted);font-size:.9rem}
+.formbuttons{display:flex;gap:8px;margin-top:14px}.formbuttons button{flex:1}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr));gap:12px}
+.event{border:1px solid var(--line);background:#10182a;border-radius:14px;padding:16px;position:relative;overflow:hidden}
+.event.warn{border-color:#bd8d39;background:linear-gradient(130deg,#302716,#11192b 65%)}
+.event.urgent{border-color:#bd4654;background:linear-gradient(130deg,#351922,#11192b 70%);animation:pulse 1.4s infinite}
+.event.live{border-color:#318c6b;background:linear-gradient(130deg,#12382f,#11192b 70%)}
+@keyframes pulse{50%{box-shadow:0 0 0 3px #ff737e22}}
+.eventtop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.event h3{font-size:1.08rem;margin:0 0 5px;overflow-wrap:anywhere}.meta{font-size:.85rem;color:var(--muted)}
+.pill{border-radius:999px;padding:4px 9px;font-size:.75rem;font-weight:750;white-space:nowrap;background:#25314a;color:#dce7ff}
+.pill.warn{background:#63461b;color:#ffe1a0}.pill.urgent{background:#672833;color:#ffc0c6}.pill.live{background:#174d3d;color:#a6ffdb}
+.count{font-variant-numeric:tabular-nums;font-size:clamp(2rem,4vw,3.3rem);font-weight:800;letter-spacing:.025em;margin:15px 0 3px}
+.countlabel{font-size:.85rem;color:var(--muted)}.bar{height:5px;background:#27334b;border-radius:9px;margin:13px 0;overflow:hidden}.bar span{display:block;height:100%;background:var(--blue);width:0%}
+.event.warn .bar span{background:var(--amber)}.event.urgent .bar span{background:var(--red)}.event.live .bar span{background:var(--green)}
+.cardactions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.cardactions button{font-size:.84rem;padding:7px 10px}
+.empty{border:1px dashed var(--line);padding:30px;border-radius:14px;color:var(--muted);text-align:center}
+.settings{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 14px;color:var(--muted);font-size:.88rem}.settings label{display:flex;gap:7px;align-items:center}
+.note{color:var(--muted);font-size:.82rem;margin-top:12px}.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#e8f0ff;color:#10182a;padding:12px 18px;border-radius:12px;box-shadow:0 10px 40px #0008;display:none;z-index:10;max-width:90vw}
+@media(max-width:850px){.layout{grid-template-columns:1fr}header{padding:18px}main{padding:10px 14px 24px}.clock{margin-top:22px}}
+</style>
+</head>
+<body>
+<header><div><h1>Lähetysvahti</h1><div class="sub">Kello, ennakkovaroitukset ja rinnakkaiset lähetykset</div></div><div class="sub">Tallentaa aikataulut tähän selaimeen</div></header>
+<main>
+  <div class="clock" id="clock">--:--:--</div><div class="date" id="date">Ladataan kellonaikaa…</div>
+  <div class="toolbar">
+    <button id="fullscreen">⛶ Koko näyttö</button>
+    <button id="soundToggle">🔔 Äänet: päällä</button>
+    <button id="testSound">Testaa ääni</button>
+    <button id="export">Vie aikataulut JSON-tiedostoon</button>
+    <button id="importBtn">Tuo aikataulut</button><input id="importFile" type="file" accept=".json,application/json" hidden>
+  </div>
+  <div class="layout">
+    <section class="panel">
+      <h2 id="formTitle">Lisää lähetys</h2>
+      <form id="eventForm">
+        <div class="formgrid">
+          <div class="field full"><label for="name">Lähetyksen nimi</label><input id="name" required maxlength="100" placeholder="Esim. Kaupunginvaltuusto"></div>
+          <div class="field"><label for="dateInput">Päivämäärä</label><input id="dateInput" type="date" required></div>
+          <div class="field"><label for="timeInput">Alkamisaika</label><input id="timeInput" type="time" required step="1"></div>
+          <div class="field"><label for="warnInput">Ennakkovaroitus</label><select id="warnInput"><option value="15">15 min ennen</option><option value="10">10 min ennen</option><option value="5" selected>5 min ennen</option><option value="3">3 min ennen</option><option value="1">1 min ennen</option><option value="0">Ei ennakkovaroitusta</option></select></div>
+          <div class="field"><label for="countInput">Viimeinen countdown</label><select id="countInput"><option value="300">5 minuuttia</option><option value="180">3 minuuttia</option><option value="120">2 minuuttia</option><option value="60" selected>1 minuutti</option><option value="30">30 sekuntia</option><option value="10">10 sekuntia</option><option value="0">Ei erillistä countdownia</option></select></div>
+          <div class="field full"><label for="details">Muistiinpano (valinnainen)</label><input id="details" maxlength="180" placeholder="Esim. ATEM, tallennus ja lähetyksen tarkistus"></div>
+          <div class="field full"><label class="checkrow"><input id="soundInput" type="checkbox" checked> Äänihälytys tälle lähetykselle</label></div>
+        </div>
+        <div class="formbuttons"><button class="primary" type="submit" id="saveBtn">+ Lisää lähetys</button><button type="button" id="cancelEdit" hidden>Peruuta</button></div>
+      </form>
+      <p class="note">Aika tarkoittaa tämän tietokoneen paikallista aikaa. Kun varoitus alkaa, kortti korostuu ja ääni kuuluu, jos äänet ovat päällä.</p>
+    </section>
+    <section>
+      <div class="settings">
+        <label><input type="checkbox" id="showPast"> Näytä menneet lähetykset</label>
+        <label><input type="checkbox" id="repeatSound" checked> Toista ääntä tärkeissä vaiheissa</label>
+      </div>
+      <div id="events" class="cards"></div>
+    </section>
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const KEY='lahetysvahti.events.v1', SETTINGS='lahetysvahti.settings.v1';
+let events=[], editingId=null, soundOn=true, audioCtx=null, lastPhases={}, toastTimer;
+try { events=JSON.parse(localStorage.getItem(KEY)||'[]'); if(!Array.isArray(events))events=[]; } catch {events=[]}
+try {const s=JSON.parse(localStorage.getItem(SETTINGS)||'{}');soundOn=s.soundOn!==false;$('repeatSound').checked=s.repeatSound!==false;}catch{}
+$('soundToggle').textContent=soundOn?'🔔 Äänet: päällä':'🔕 Äänet: pois';
+function save(){localStorage.setItem(KEY,JSON.stringify(events));}
+function saveSettings(){localStorage.setItem(SETTINGS,JSON.stringify({soundOn,repeatSound:$('repeatSound').checked}));}
+function pad(n){return String(n).padStart(2,'0')}
+function localDate(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
+function localTime(d){return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`}
+function fmt(sec){sec=Math.max(0,Math.floor(sec));let h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;return h>0?`${pad(h)}:${pad(m)}:${pad(s)}`:`${pad(m)}:${pad(s)}`}
+function target(e){return new Date(e.target).getTime()}
+function showToast(msg){$('toast').textContent=msg;$('toast').style.display='block';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').style.display='none',3500)}
+function beep(kind='normal'){
+ if(!soundOn)return;
+ try{audioCtx=audioCtx||new(window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();
+ const now=audioCtx.currentTime, seq=kind==='urgent'?[880,660,880]:kind==='start'?[660,880,1040]:[660];
+ seq.forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(.0001,now+i*.19);g.gain.exponentialRampToValueAtTime(.18,now+i*.19+.025);g.gain.exponentialRampToValueAtTime(.0001,now+i*.19+.16);o.connect(g);g.connect(audioCtx.destination);o.start(now+i*.19);o.stop(now+i*.19+.18);});
+ }catch{}
+}
+function phase(e,now){const t=target(e),left=(t-now)/1000;if(left<=0)return 'started';if(e.countdown>0&&left<=e.countdown)return 'countdown';if(e.warning>0&&left<=e.warning*60)return 'warning';return 'waiting'}
+function phaseLabel(e,p,now){const left=(target(e)-now)/1000;if(p==='started')return 'Alkamisaika ohitettu';if(p==='countdown')return 'COUNTDOWN ALKANUT';if(p==='warning')return 'VALMISTAUTUMINEN';return 'Ajastettu'}
+function status(e,p,now){if(p==='started')return 'Aika';if(p==='countdown')return 'LÄHETYS ALKAA';if(p==='warning')return 'VALMISTAUTUMINEN';return 'TULOSSA'}
+function sortedEvents(){return [...events].sort((a,b)=>target(a)-target(b))}
+function render(){
+ const now=Date.now(),past=$('showPast').checked;
+ const list=sortedEvents().filter(e=>past||target(e)>now-60*60*1000);
+ if(!list.length){$('events').innerHTML='<div class="empty">Ei ajastettuja lähetyksiä näkyvissä.<br>Lisää ensimmäinen lähetys vasemmalta.</div>';return}
+ $('events').innerHTML=list.map(e=>{
+  const t=target(e),left=(t-now)/1000,p=phase(e,now),started=left<=0;
+  const cls=p==='countdown'?'urgent':p==='warning'?'warn':started?'live':'';
+  let big,label;
+  if(started){big='00:00';label='Suunniteltu alkamisaika on mennyt';}
+  else if(p==='countdown'){big=fmt(left);label='Aikaa lähetyksen alkuun';}
+  else {big=fmt(left);label=p==='warning'?'Aikaa lähetyksen alkuun':'Aikaa lähetykseen';}
+  const tdate=new Date(t);
+  const pct=started?100:Math.min(100,Math.max(0,100-left/Math.max(1,(e.warning*60||left+1))*100));
+  return `<article class="event ${cls}" data-id="${e.id}">
+    <div class="eventtop"><div><h3>${esc(e.name)}</h3><div class="meta">${localDate(tdate)} · ${localTime(tdate)}</div></div><span class="pill ${cls}">${status(e,p,now)}</span></div>
+    ${e.details?`<div class="meta" style="margin-top:8px">${esc(e.details)}</div>`:''}
+    <div class="count">${big}</div><div class="countlabel">${label}</div>
+    <div class="bar"><span style="width:${pct}%"></span></div>
+    <div class="meta">${started?'Tarkista lähetys ja merkitse tarvittaessa valmiiksi':p==='countdown'?'Viimeinen lähtölaskenta käynnissä':p==='warning'?`Ennakkovaroitus · ${e.warning} min ennen`:`Ennakkovaroitus ${e.warning?e.warning+' min':'ei käytössä'} · countdown ${e.countdown?fmt(e.countdown):'ei käytössä'}`}</div>
+    <div class="cardactions"><button data-action="done" data-id="${e.id}">✓ Kuittaa valmiiksi</button><button data-action="edit" data-id="${e.id}">Muokkaa</button><button class="danger" data-action="delete" data-id="${e.id}">Poista</button></div>
+  </article>`;
+ }).join('');
+}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function tick(){
+ const now=new Date();$('clock').textContent=localTime(now);$('date').textContent=now.toLocaleDateString('fi-FI',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+ events.forEach(e=>{
+  if(e.done||!e.sound)return;
+  const p=phase(e,now.getTime()),old=lastPhases[e.id];
+  if(old!==p&&old!==undefined){
+   if(p==='warning'){showToast(`Valmistautuminen: ${e.name} · lähetys alkaa ${e.warning} minuutin varoitusikkunassa`);beep('normal');}
+   if(p==='countdown'){showToast(`COUNTDOWN: ${e.name} · ${fmt(e.countdown)} lähetyksen alkuun`);beep('urgent');}
+   if(p==='started'){showToast(`Lähetyksen alkamisaika: ${e.name}`);beep('start');}
+  }
+  lastPhases[e.id]=p;
+ });
+ render();
+}
+function resetForm(){editingId=null;$('eventForm').reset();$('dateInput').value=localDate(new Date());$('timeInput').value='12:00:00';$('soundInput').checked=true;$('formTitle').textContent='Lisää lähetys';$('saveBtn').textContent='+ Lisää lähetys';$('cancelEdit').hidden=true;}
+$('dateInput').value=localDate(new Date());$('timeInput').value=`${pad(new Date().getHours())}:${pad(new Date().getMinutes())}:00`;
+$('eventForm').addEventListener('submit',ev=>{
+ ev.preventDefault();
+ const dt=new Date(`${$('dateInput').value}T${$('timeInput').value}`);
+ if(!Number.isFinite(dt.getTime())){showToast('Tarkista päivämäärä ja kellonaika.');return}
+ const data={id:editingId||`${Date.now()}-${Math.random().toString(36).slice(2,7)}`,name:$('name').value.trim(),target:dt.toISOString(),warning:Number($('warnInput').value),countdown:Number($('countInput').value),details:$('details').value.trim(),sound:$('soundInput').checked,done:false};
+ if(!data.name)return;
+ if(editingId){events=events.map(e=>e.id===editingId?data:e)}else events.push(data);
+ save();lastPhases[data.id]=phase(data,Date.now());resetForm();render();showToast(editingId?'Lähetys päivitetty.':'Lähetys lisätty aikatauluun.');
+});
+$('cancelEdit').addEventListener('click',resetForm);
+$('events').addEventListener('click',ev=>{
+ const b=ev.target.closest('button[data-action]');if(!b)return;const e=events.find(x=>x.id===b.dataset.id);if(!e)return;
+ if(b.dataset.action==='delete'){events=events.filter(x=>x.id!==e.id);delete lastPhases[e.id];save();render();showToast('Lähetys poistettu.')}
+ if(b.dataset.action==='done'){e.done=true;save();render();showToast('Lähetys kuitattu valmiiksi.')}
+ if(b.dataset.action==='edit'){
+  editingId=e.id;$('name').value=e.name;const d=new Date(e.target);$('dateInput').value=localDate(d);$('timeInput').value=`${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;$('warnInput').value=String(e.warning);$('countInput').value=String(e.countdown);$('details').value=e.details||'';$('soundInput').checked=e.sound;$('formTitle').textContent='Muokkaa lähetystä';$('saveBtn').textContent='Tallenna muutokset';$('cancelEdit').hidden=false;window.scrollTo({top:0,behavior:'smooth'});
+ }
+});
+$('fullscreen').addEventListener('click',async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen()}catch{showToast('Koko näytön tilaa ei voitu avata.')}});
+$('soundToggle').addEventListener('click',()=>{soundOn=!soundOn;$('soundToggle').textContent=soundOn?'🔔 Äänet: päällä':'🔕 Äänet: pois';saveSettings();if(soundOn)beep()});
+$('testSound').addEventListener('click',()=>{if(!soundOn){soundOn=true;$('soundToggle').textContent='🔔 Äänet: päällä';saveSettings()}beep('start');showToast('Äänitesti. Salli selaimen ääni tarvittaessa klikkaamalla sivua.');});
+$('repeatSound').addEventListener('change',saveSettings);$('showPast').addEventListener('change',render);
+$('export').addEventListener('click',()=>{const blob=new Blob([JSON.stringify(events,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='lahetysvahti-aikataulut.json';a.click();URL.revokeObjectURL(url)});
+$('importBtn').addEventListener('click',()=>$('importFile').click());
+$('importFile').addEventListener('change',async ev=>{const f=ev.target.files[0];if(!f)return;try{const arr=JSON.parse(await f.text());if(!Array.isArray(arr)||arr.some(e=>!e.name||!e.target))throw Error();const byId=new Map(events.map(e=>[e.id,e]));arr.forEach(e=>byId.set(e.id||`${Date.now()}-${Math.random()}`,{warning:5,countdown:60,details:'',sound:true,done:false,...e}));events=[...byId.values()];save();render();showToast('Aikataulut tuotu.')}catch{showToast('Tiedostoa ei voitu lukea aikatauluna.')}ev.target.value=''});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)tick()});
+tick();setInterval(tick,250);
+})();
+</script>
+</body>
+</html>
